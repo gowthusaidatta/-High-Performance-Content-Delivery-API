@@ -1,0 +1,16 @@
+# This is the submission.yml file for the Content Delivery API project
+
+# Setup command - installs all dependencies
+setup:
+  - cmd: pip install -r requirements.txt
+    description: Install Python dependencies
+
+# Test command - runs the test suite
+test:
+  - cmd: pytest tests/ -v --cov=app --cov-report=term-missing
+    description: Run comprehensive test suite with coverage report
+
+# Benchmark command - runs performance testing
+benchmark:
+  - cmd: python scripts/benchmark.py
+    description: Run CDN cache performance benchmark

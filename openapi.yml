@@ -1,0 +1,384 @@
+# OpenAPI Specification for Content Delivery API
+openapi: 3.0.0
+info:
+  title: High-Performance Content Delivery API
+  description: A robust, high-performance content delivery API with edge caching, ETags, versioning, and token-based access
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      tags:
+        - System
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+
+  /assets/upload:
+    post:
+      summary: Upload a new asset
+      tags:
+        - Assets
+      parameters:
+        - name: is_public
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Whether the asset is publicly accessible
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload
+      responses:
+        '200':
+          description: Asset uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '400':
+          description: File is empty or invalid
+        '500':
+          description: Failed to upload file
+
+  /assets/assets/{asset_id}:
+    get:
+      summary: Get asset metadata
+      tags:
+        - Assets
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Asset metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '404':
+          description: Asset not found
+
+  /assets/assets/{asset_id}/download:
+    head:
+      summary: Check asset for modifications without downloading
+      tags:
+        - Assets
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Asset exists
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: Asset ETag
+            Last-Modified:
+              schema:
+                type: string
+              description: Last modification time
+            Cache-Control:
+              schema:
+                type: string
+              description: Cache control directive
+        '404':
+          description: Asset not found
+
+    get:
+      summary: Download asset with conditional request support
+      tags:
+        - Assets
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+          description: ETag for conditional requests
+      responses:
+        '200':
+          description: Asset content
+          headers:
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+            X-Content-Type-Options:
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: Not Modified (ETag matches)
+          headers:
+            ETag:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+        '404':
+          description: Asset not found
+
+  /assets/assets/{asset_id}/publish:
+    post:
+      summary: Create an immutable version of an asset
+      tags:
+        - Versioning
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Version created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishResponse'
+        '404':
+          description: Asset not found
+        '500':
+          description: Failed to create version
+
+  /assets/assets/{asset_id}/access-token:
+    post:
+      summary: Create an access token for private asset
+      tags:
+        - Security
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: expiry_seconds
+          in: query
+          schema:
+            type: integer
+            default: 3600
+          description: Token expiry time in seconds
+      responses:
+        '200':
+          description: Access token created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessToken'
+        '404':
+          description: Asset not found
+
+  /assets/public/{version_id}:
+    get:
+      summary: Get public versioned asset with aggressive caching
+      tags:
+        - Public
+      parameters:
+        - name: version_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+          description: ETag for conditional requests
+      responses:
+        '200':
+          description: Versioned asset content
+          headers:
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=31536000, immutable"
+            X-Version-Number:
+              schema:
+                type: integer
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: Not Modified
+        '404':
+          description: Version not found
+
+  /assets/private/{token}:
+    get:
+      summary: Access private asset using token
+      tags:
+        - Private
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Valid access token
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+          description: ETag for conditional requests
+      responses:
+        '200':
+          description: Private asset content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: Not Modified
+        '403':
+          description: Invalid or expired token
+
+components:
+  schemas:
+    Asset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique asset identifier
+        filename:
+          type: string
+          description: Original filename
+        mime_type:
+          type: string
+          description: MIME type of the asset
+        size:
+          type: integer
+          description: File size in bytes
+        etag:
+          type: string
+          description: Strong ETag (SHA-256 hash)
+        version:
+          type: integer
+          description: Current version number
+        is_public:
+          type: boolean
+          description: Whether asset is publicly accessible
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AssetVersion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        version_number:
+          type: integer
+        etag:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PublishResponse:
+      type: object
+      properties:
+        version_id:
+          type: string
+          format: uuid
+        version_number:
+          type: integer
+        etag:
+          type: string
+        url:
+          type: string
+          format: uri
+
+    AccessToken:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Secure access token
+        expires_at:
+          type: string
+          format: date-time
+
+tags:
+  - name: System
+    description: System health and status
+  - name: Assets
+    description: Asset management and retrieval
+  - name: Versioning
+    description: Asset versioning and publishing
+  - name: Security
+    description: Access token management
+  - name: Public
+    description: Public asset endpoints
+  - name: Private
+    description: Private asset endpoints with token-based access
