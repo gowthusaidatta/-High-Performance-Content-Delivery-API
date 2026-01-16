@@ -34,13 +34,18 @@ async def upload_test_asset(session, asset_num):
 async def download_asset(session, asset_id):
     """Download an asset and track response time."""
     start = time.time()
-    async with session.get(f"{BASE_URL}/assets/assets/{asset_id}/download") as resp:
+    async with session.get(f"{BASE_URL}/assets/{asset_id}/download") as resp:
         content = await resp.read()
         elapsed = time.time() - start
+        
+        # Cache hit detection: 304 means it was cached, 200 from CDN has cache headers
+        is_cache_hit = resp.status == 304
+        
         return {
             "status": resp.status,
             "time": elapsed,
-            "from_cache": resp.headers.get("CF-Cache-Status") == "HIT" if "CF-Cache-Status" in resp.headers else None
+            "cache_hit": is_cache_hit,
+            "from_cdn": resp.headers.get("CF-Cache-Status") == "HIT" if "CF-Cache-Status" in resp.headers else False
         }
 
 
@@ -76,19 +81,38 @@ async def run_benchmark():
         print(f"\n[3] Running {NUM_REQUESTS} benchmark requests...")
         results = []
         response_times = []
+        etags = {}  # Track ETags for conditional requests
         
+        # First pass: get ETags
+        print("  [3a] Collecting ETags for conditional requests...")
+        for asset in assets:
+            async with session.get(f"{BASE_URL}/assets/{asset['id']}/download") as resp:
+                etags[asset['id']] = resp.headers.get("etag")
+        
+        # Second pass: run benchmark with conditional requests
+        print(f"  [3b] Running {NUM_REQUESTS} requests with If-None-Match...")
         for i in range(NUM_REQUESTS):
             asset = random.choice(assets)
-            result = await download_asset(session, asset["id"])
-            results.append(result)
-            response_times.append(result["time"])
+            etag = etags.get(asset['id'])
+            
+            # Use If-None-Match header for conditional requests
+            headers = {"If-None-Match": etag} if etag else {}
+            
+            start = time.time()
+            async with session.get(f"{BASE_URL}/assets/{asset['id']}/download", headers=headers) as resp:
+                content = await resp.read()
+                elapsed = time.time() - start
+                
+                result = await download_asset(session, asset["id"])
+                results.append(result)
+                response_times.append(elapsed)
             
             if (i + 1) % 20 == 0:
-                print(f"  Completed {i + 1}/{NUM_REQUESTS} requests")
+                print(f"    Completed {i + 1}/{NUM_REQUESTS} requests")
         
         # Calculate statistics
         successful = sum(1 for r in results if r["status"] == 200)
-        cache_hits = sum(1 for r in results if r["status"] == 304)
+        cache_hits = sum(1 for r in results if r["cache_hit"])
         cache_hit_ratio = (cache_hits / len(results) * 100) if results else 0
         
         avg_time = sum(response_times) / len(response_times)

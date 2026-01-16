@@ -61,7 +61,7 @@ async def upload_asset(
     return AssetResponse.model_validate(asset)
 
 
-@router.head("/assets/{asset_id}/download")
+@router.head("/{asset_id}/download")
 async def head_asset(
     asset_id: str,
     db: Session = Depends(get_db)
@@ -83,7 +83,7 @@ async def head_asset(
     )
 
 
-@router.get("/assets/{asset_id}/download")
+@router.get("/{asset_id}/download")
 async def download_asset(
     asset_id: str,
     if_none_match: str = Header(None),
@@ -122,7 +122,7 @@ async def download_asset(
     )
 
 
-@router.post("/assets/{asset_id}/publish")
+@router.post("/{asset_id}/publish")
 async def publish_version(
     asset_id: str,
     db: Session = Depends(get_db)
@@ -262,7 +262,7 @@ async def get_private_asset(
     )
 
 
-@router.post("/assets/{asset_id}/access-token")
+@router.post("/{asset_id}/access-token")
 async def create_access_token(
     asset_id: str,
     expiry_seconds: int = 3600,
@@ -290,7 +290,7 @@ async def create_access_token(
     return AccessTokenResponse.model_validate(access_token)
 
 
-@router.get("/assets/{asset_id}")
+@router.get("/{asset_id}")
 async def get_asset_info(
     asset_id: str,
     db: Session = Depends(get_db)

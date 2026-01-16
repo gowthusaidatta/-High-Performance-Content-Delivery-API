@@ -66,7 +66,7 @@ paths:
         '500':
           description: Failed to upload file
 
-  /assets/assets/{asset_id}:
+  /assets/{asset_id}:
     get:
       summary: Get asset metadata
       tags:
@@ -88,7 +88,7 @@ paths:
         '404':
           description: Asset not found
 
-  /assets/assets/{asset_id}/download:
+  /assets/{asset_id}/download:
     head:
       summary: Check asset for modifications without downloading
       tags:
@@ -168,7 +168,7 @@ paths:
         '404':
           description: Asset not found
 
-  /assets/assets/{asset_id}/publish:
+  /assets/{asset_id}/publish:
     post:
       summary: Create an immutable version of an asset
       tags:
@@ -192,7 +192,7 @@ paths:
         '500':
           description: Failed to create version
 
-  /assets/assets/{asset_id}/access-token:
+  /assets/{asset_id}/access-token:
     post:
       summary: Create an access token for private asset
       tags:

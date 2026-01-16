@@ -1,16 +1,12 @@
-# This is the submission.yml file for the Content Delivery API project
+# High-Performance Content Delivery API - Submission Configuration
+# This file defines the commands for setup, testing, and benchmarking
 
-# Setup command - installs all dependencies
 setup:
-  - cmd: pip install -r requirements.txt
-    description: Install Python dependencies
+  - command: "pip install -r requirements.txt"
+  - command: "docker-compose build"
 
-# Test command - runs the test suite
 test:
-  - cmd: pytest tests/ -v --cov=app --cov-report=term-missing
-    description: Run comprehensive test suite with coverage report
+  - command: "docker-compose run --rm api pytest tests/ -v --tb=short"
 
-# Benchmark command - runs performance testing
 benchmark:
-  - cmd: python scripts/benchmark.py
-    description: Run CDN cache performance benchmark
+  - command: "docker-compose run --rm api python scripts/benchmark.py"
